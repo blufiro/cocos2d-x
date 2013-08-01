@@ -765,6 +765,9 @@ CCSpriteBatchNode * CCSpriteBatchNode::addSpriteWithoutQuad(CCSprite*child, unsi
         {
             ++i;
         }
+		// can break early
+		else
+			break;
     }
     
     m_pobDescendants->insertObject(child, i);
