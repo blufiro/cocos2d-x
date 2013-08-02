@@ -171,13 +171,15 @@ private:
 
     /* The layer recognizes some special properties, like cc_vertez */
     void parseInternalProperties();
-    void setupTileSprite(CCSprite* sprite, CCPoint pos, unsigned int gid);
-    CCSprite* reusedTileWithRect(CCRect rect);
+    void setupTileSprite(CCSprite* sprite, const CCPoint& pos, unsigned int gid);
+    CCSprite* reusedTileWithRect(const CCRect& rect);
     int vertexZForPos(const CCPoint& pos);
+	int zOrderForPos(const CCPoint& pos);
 
     // index
     unsigned int atlasIndexForExistantZ(unsigned int z);
     unsigned int atlasIndexForNewZ(int z);
+
 protected:
     //! name of the layer
     std::string m_sLayerName;
@@ -188,11 +190,17 @@ protected:
     unsigned int        m_uMaxGID;
 
     //! Only used when vertexZ is used
-    int                    m_nVertexZvalue;
+    int                 m_nVertexZvalue;
     bool                m_bUseAutomaticVertexZ;
+	//! Only used when zorder is used
+	//! Setting this to true will also cause all tiles to become sprites
+	// instead of just quads in SpriteBatchNode
+	bool				m_bUseAutomaticZOrder;
 
     //! used for optimization
     CCSprite            *m_pReusedTile;
+	//! used for optimization:
+	//z-sorted array of indices for texture atlas quad array
     ccCArray            *m_pAtlasIndexArray;
     
     // used for retina display

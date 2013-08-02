@@ -92,6 +92,7 @@ bool CCTMXLayer::initWithTilesetInfo(CCTMXTilesetInfo *tilesetInfo, CCTMXLayerIn
 
         m_bUseAutomaticVertexZ = false;
         m_nVertexZvalue = 0;
+		m_bUseAutomaticZOrder = false;
         
         return true;
     }
@@ -233,13 +234,29 @@ void CCTMXLayer::parseInternalProperties()
             m_nVertexZvalue = vertexz->intValue();
         }
     }
+
+	// if cc_zorder=automatic, then tiles will be rendered using in row order from top to bottom
+
+	CCString *zorder = propertyNamed("cc_zorder");
+    if (zorder) 
+    {
+		m_bUseAutomaticZOrder = true;
+
+		// delete AtlasIndexArray as we no longer can use quads in this mode
+		// all tiles will be instantiated as sprites
+		if (m_pAtlasIndexArray)
+		{
+			ccCArrayFree(m_pAtlasIndexArray);
+			m_pAtlasIndexArray = NULL;
+		}
+	}
 }
 
-void CCTMXLayer::setupTileSprite(CCSprite* sprite, CCPoint pos, unsigned int gid)
+void CCTMXLayer::setupTileSprite(CCSprite* sprite, const CCPoint& pos, unsigned int gid)
 {
     sprite->setPosition(positionAt(pos));
     sprite->setVertexZ((float)vertexZForPos(pos));
-    sprite->setAnchorPoint(CCPointZero);
+	sprite->setAnchorPoint(CCPointZero);
     sprite->setOpacity(m_cOpacity);
 
     //issue 1264, flip can be undone as well
@@ -292,7 +309,7 @@ void CCTMXLayer::setupTileSprite(CCSprite* sprite, CCPoint pos, unsigned int gid
     }
 }
 
-CCSprite* CCTMXLayer::reusedTileWithRect(CCRect rect)
+CCSprite* CCTMXLayer::reusedTileWithRect(const CCRect& rect)
 {
     if (! m_pReusedTile) 
     {
@@ -320,7 +337,7 @@ CCSprite* CCTMXLayer::reusedTileWithRect(CCRect rect)
 CCSprite * CCTMXLayer::tileAt(const CCPoint& pos)
 {
     CCAssert(pos.x < m_tLayerSize.width && pos.y < m_tLayerSize.height && pos.x >=0 && pos.y >=0, "TMXLayer: invalid position");
-    CCAssert(m_pTiles && m_pAtlasIndexArray, "TMXLayer: the tiles map has been released");
+    CCAssert(m_pTiles, "TMXLayer: the tiles map has been released");
 
     CCSprite *tile = NULL;
     unsigned int gid = this->tileGIDAt(pos);
@@ -334,6 +351,9 @@ CCSprite * CCTMXLayer::tileAt(const CCPoint& pos)
         // tile not created yet. create it
         if (! tile) 
         {
+			// when not using quad optimization, tile must exist
+			CCAssert(m_pAtlasIndexArray, "Quad optimization but no m_pAtlasIndexArray");
+
             CCRect rect = m_pTileSet->rectForGID(gid);
             rect = CC_RECT_PIXELS_TO_POINTS(rect);
 
@@ -342,7 +362,7 @@ CCSprite * CCTMXLayer::tileAt(const CCPoint& pos)
             tile->setBatchNode(this);
             tile->setPosition(positionAt(pos));
             tile->setVertexZ((float)vertexZForPos(pos));
-            tile->setAnchorPoint(CCPointZero);
+			tile->setAnchorPoint(CCPointZero);
             tile->setOpacity(m_cOpacity);
 
             unsigned int indexForZ = atlasIndexForExistantZ(z);
@@ -362,7 +382,7 @@ unsigned int CCTMXLayer::tileGIDAt(const CCPoint& pos)
 unsigned int CCTMXLayer::tileGIDAt(const CCPoint& pos, ccTMXTileFlags* flags)
 {
     CCAssert(pos.x < m_tLayerSize.width && pos.y < m_tLayerSize.height && pos.x >=0 && pos.y >=0, "TMXLayer: invalid position");
-    CCAssert(m_pTiles && m_pAtlasIndexArray, "TMXLayer: the tiles map has been released");
+    CCAssert(m_pTiles, "TMXLayer: the tiles map has been released");
 
     int idx = (int)(pos.x + pos.y * m_tLayerSize.width);
     // Bits on the far end of the 32-bit global tile ID are used for tile flags
@@ -385,36 +405,52 @@ CCSprite * CCTMXLayer::insertTileForGID(unsigned int gid, const CCPoint& pos)
 
     intptr_t z = (intptr_t)(pos.x + pos.y * m_tLayerSize.width);
 
-    CCSprite *tile = reusedTileWithRect(rect);
+	// if quad optimization is used
+	CCSprite *tile;
+	if(m_pAtlasIndexArray)
+	{
+		tile = reusedTileWithRect(rect);
 
-    setupTileSprite(tile, pos, gid);
+		setupTileSprite(tile, pos, gid);
 
-    // get atlas index
-    unsigned int indexForZ = atlasIndexForNewZ(z);
+		// get atlas index
+		unsigned int indexForZ = atlasIndexForNewZ(z);
 
-    // Optimization: add the quad without adding a child
-    this->insertQuadFromSprite(tile, indexForZ);
+		// Optimization: add the quad without adding a child
+		this->insertQuadFromSprite(tile, indexForZ);
 
-    // insert it into the local atlasindex array
-    ccCArrayInsertValueAtIndex(m_pAtlasIndexArray, (void*)z, indexForZ);
+		// insert it into the local atlasindex array
+		ccCArrayInsertValueAtIndex(m_pAtlasIndexArray, (void*)z, indexForZ);
 
-    // update possible children
-    if (m_pChildren && m_pChildren->count()>0)
-    {
-        CCObject* pObject = NULL;
-        CCARRAY_FOREACH(m_pChildren, pObject)
-        {
-            CCSprite* pChild = (CCSprite*) pObject;
-            if (pChild)
-            {
-                unsigned int ai = pChild->getAtlasIndex();
-                if ( ai >= indexForZ )
-                {
-                    pChild->setAtlasIndex(ai+1);
-                }
-            }
-        }
-    }
+		// update possible children
+		if (m_pChildren && m_pChildren->count()>0)
+		{
+			CCObject* pObject = NULL;
+			CCARRAY_FOREACH(m_pChildren, pObject)
+			{
+				CCSprite* pChild = (CCSprite*) pObject;
+				if (pChild)
+				{
+					unsigned int ai = pChild->getAtlasIndex();
+					if ( ai >= indexForZ )
+					{
+						pChild->setAtlasIndex(ai+1);
+					}
+				}
+			}
+		}
+	}
+	else // no quad optimization, use sprites only
+	{
+		tile = CCSprite::create();
+        tile->initWithTexture(m_pobTextureAtlas->getTexture(), rect, false);
+        tile->setBatchNode(this);
+		setupTileSprite(tile, pos, gid);
+		
+		// insert it into the spritebatchnode
+		CCSpriteBatchNode::addChild(tile, zOrderForPos(pos), z);
+	}
+
     m_pTiles[z] = gid;
     return tile;
 }
@@ -424,15 +460,25 @@ CCSprite * CCTMXLayer::updateTileForGID(unsigned int gid, const CCPoint& pos)
     rect = CCRectMake(rect.origin.x / m_fContentScaleFactor, rect.origin.y / m_fContentScaleFactor, rect.size.width/ m_fContentScaleFactor, rect.size.height/ m_fContentScaleFactor);
     int z = (int)(pos.x + pos.y * m_tLayerSize.width);
 
-    CCSprite *tile = reusedTileWithRect(rect);
+	CCSprite *tile = (CCSprite*)getChildByTag(z);
+	if(tile)
+	{
+		setupTileSprite(tile, pos, gid);
+	}
+	else
+	{
+		tile = reusedTileWithRect(rect);
 
-    setupTileSprite(tile ,pos ,gid);
+		setupTileSprite(tile ,pos ,gid);
 
-    // get atlas index
-    unsigned int indexForZ = atlasIndexForExistantZ(z);
-    tile->setAtlasIndex(indexForZ);
-    tile->setDirty(true);
-    tile->updateTransform();
+		// get atlas index
+		unsigned int indexForZ = atlasIndexForExistantZ(z);
+		tile->setAtlasIndex(indexForZ);
+	}
+
+	tile->setDirty(true);
+	tile->updateTransform();
+
     m_pTiles[z] = gid;
 
     return tile;
@@ -447,20 +493,35 @@ CCSprite * CCTMXLayer::appendTileForGID(unsigned int gid, const CCPoint& pos)
 
     intptr_t z = (intptr_t)(pos.x + pos.y * m_tLayerSize.width);
 
-    CCSprite *tile = reusedTileWithRect(rect);
+	// if quad optimization is used
+	CCSprite *tile;
+	if(m_pAtlasIndexArray)
+	{
+		tile = reusedTileWithRect(rect);
 
-    setupTileSprite(tile ,pos ,gid);
+		setupTileSprite(tile ,pos ,gid);
 
-    // optimization:
-    // The difference between appendTileForGID and insertTileforGID is that append is faster, since
-    // it appends the tile at the end of the texture atlas
-    unsigned int indexForZ = m_pAtlasIndexArray->num;
+		// optimization:
+		// The difference between appendTileForGID and insertTileforGID is that append is faster, since
+		// it appends the tile at the end of the texture atlas
+		unsigned int indexForZ = m_pAtlasIndexArray->num;
 
-    // don't add it using the "standard" way.
-    insertQuadFromSprite(tile, indexForZ);
+		// don't add it using the "standard" way.
+		insertQuadFromSprite(tile, indexForZ);
 
-    // append should be after addQuadFromSprite since it modifies the quantity values
-    ccCArrayInsertValueAtIndex(m_pAtlasIndexArray, (void*)z, indexForZ);
+		// append should be after addQuadFromSprite since it modifies the quantity values
+		ccCArrayInsertValueAtIndex(m_pAtlasIndexArray, (void*)z, indexForZ);
+	}
+	else // no quad optimization, use sprites only
+	{
+		tile = CCSprite::create();
+        tile->initWithTexture(m_pobTextureAtlas->getTexture(), rect, false);
+        tile->setBatchNode(this);
+		setupTileSprite(tile, pos, gid);
+		
+		// insert it into the spritebatchnode
+		CCSpriteBatchNode::addChild(tile, zOrderForPos(pos), z);
+	}
 
     return tile;
 }
@@ -472,6 +533,8 @@ static inline int compareInts(const void * a, const void * b)
 }
 unsigned int CCTMXLayer::atlasIndexForExistantZ(unsigned int z)
 {
+	CCAssert(m_pAtlasIndexArray, "quad optimization is not used");
+
     int key=z;
     int *item = (int*)bsearch((void*)&key, (void*)&m_pAtlasIndexArray->arr[0], m_pAtlasIndexArray->num, sizeof(void*), compareInts);
 
@@ -482,6 +545,8 @@ unsigned int CCTMXLayer::atlasIndexForExistantZ(unsigned int z)
 }
 unsigned int CCTMXLayer::atlasIndexForNewZ(int z)
 {
+	CCAssert(m_pAtlasIndexArray, "quad optimization is not used");
+
     // XXX: This can be improved with a sort of binary search
     unsigned int i=0;
     for (i=0; i< m_pAtlasIndexArray->num ; i++) 
@@ -551,10 +616,19 @@ void CCTMXLayer::setTileGID(unsigned int gid, const CCPoint& pos, ccTMXTileFlags
 }
 void CCTMXLayer::addChild(CCNode * child, int zOrder, int tag)
 {
-    CC_UNUSED_PARAM(child);
-    CC_UNUSED_PARAM(zOrder);
-    CC_UNUSED_PARAM(tag);
-    CCAssert(0, "addChild: is not supported on CCTMXLayer. Instead use setTileGID:at:/tileAt:");
+    //CC_UNUSED_PARAM(child);
+    //CC_UNUSED_PARAM(zOrder);
+    //CC_UNUSED_PARAM(tag);
+    //CCAssert(0, "addChild: is not supported on CCTMXLayer. Instead use setTileGID:at:/tileAt:");
+
+	// must use automatic zorder mode in order to use addchild
+	// since sprites can now interfere with the z order in the batch
+	// so we have to delete the atlasindexarray
+	CCAssert(m_bUseAutomaticZOrder, "Not using automatiz z order");
+	
+	// want to allow for non-tmx map sprites using same texture atlas
+	// e.g. game sprites that are instantiated at run-time
+	CCSpriteBatchNode::addChild(child, zOrder, tag);
 }
 void CCTMXLayer::removeChild(CCNode* node, bool cleanup)
 {
@@ -583,42 +657,49 @@ void CCTMXLayer::removeTileAt(const CCPoint& pos)
     if (gid) 
     {
         unsigned int z = (unsigned int)(pos.x + pos.y * m_tLayerSize.width);
-        unsigned int atlasIndex = atlasIndexForExistantZ(z);
-
+        
         // remove tile from GID map
         m_pTiles[z] = 0;
 
+		// this is used to remove sprite whether
+		// quad optimization is used or not
+		// remove it from sprites and/or texture atlas
+		CCSprite *sprite = (CCSprite*)getChildByTag(z);
+		if (sprite)
+		{
+			CCSpriteBatchNode::removeChild(sprite, true);
+		}
+
+		// for quad optimization
         // remove tile from atlas position array
-        ccCArrayRemoveValueAtIndex(m_pAtlasIndexArray, atlasIndex);
+		if(m_pAtlasIndexArray)
+		{
+			unsigned int atlasIndex = atlasIndexForExistantZ(z);
+			ccCArrayRemoveValueAtIndex(m_pAtlasIndexArray, atlasIndex);
 
-        // remove it from sprites and/or texture atlas
-        CCSprite *sprite = (CCSprite*)getChildByTag(z);
-        if (sprite)
-        {
-            CCSpriteBatchNode::removeChild(sprite, true);
-        }
-        else 
-        {
-            m_pobTextureAtlas->removeQuadAtIndex(atlasIndex);
+			if(!sprite) 
+			{
+				m_pobTextureAtlas->removeQuadAtIndex(atlasIndex);
 
-            // update possible children
-            if (m_pChildren && m_pChildren->count()>0)
-            {
-                CCObject* pObject = NULL;
-                CCARRAY_FOREACH(m_pChildren, pObject)
-                {
-                    CCSprite* pChild = (CCSprite*) pObject;
-                    if (pChild)
-                    {
-                        unsigned int ai = pChild->getAtlasIndex();
-                        if ( ai >= atlasIndex )
-                        {
-                            pChild->setAtlasIndex(ai-1);
-                        }
-                    }
-                }
-            }
-        }
+				// update possible children
+				if (m_pChildren && m_pChildren->count()>0)
+				{
+					CCObject* pObject = NULL;
+					CCARRAY_FOREACH(m_pChildren, pObject)
+					{
+						CCSprite* pChild = (CCSprite*) pObject;
+						if (pChild)
+						{
+							unsigned int ai = pChild->getAtlasIndex();
+							if ( ai >= atlasIndex )
+							{
+								pChild->setAtlasIndex(ai-1);
+							}
+						}
+					}//end for
+				}
+			}
+		}
     }
 }
 
@@ -705,10 +786,37 @@ int CCTMXLayer::vertexZForPos(const CCPoint& pos)
             CCAssert(0, "TMX invalid value");
             break;
         }
-    } 
-    else
+    }
+	else
     {
         ret = m_nVertexZvalue;
+    }
+    
+    return ret;
+}
+
+int CCTMXLayer::zOrderForPos(const CCPoint& pos)
+{
+	int ret = 0;
+    unsigned int maxVal = 0;
+    if (m_bUseAutomaticZOrder)
+    {
+        switch (m_uLayerOrientation) 
+        {
+        case CCTMXOrientationIso:
+            maxVal = (unsigned int)(m_tLayerSize.width + m_tLayerSize.height);
+            ret = (int)(-(maxVal - (pos.x + pos.y)));
+            break;
+        case CCTMXOrientationOrtho:
+            ret = (int)(-(m_tLayerSize.height-pos.y));
+            break;
+        case CCTMXOrientationHex:
+            CCAssert(0, "TMX Hexa zOrder not supported");
+            break;
+        default:
+            CCAssert(0, "TMX invalid value");
+            break;
+        }
     }
     
     return ret;

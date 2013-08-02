@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" width="12" height="12" tilewidth="101" tileheight="81">
+ <tileset firstgid="1" name="Untitled" tilewidth="101" tileheight="171" spacing="2" margin="2">
+  <image source="ortho-test1.png" width="1024" height="1024"/>
+ </tileset>
+ <layer name="floor" width="12" height="12">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAC2NgGFlAlQg82NQPZgwAVOGiDUACAAA=
+  </data>
+ </layer>
+ <layer name="trees" width="12" height="12">
+  <properties>
+   <property name="cc_zorder" value="true"/>
+  </properties>
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAC2NgGAXUBIx4MDaggQdjA2p4MDagDsUiSGx0jAxEoJhYAAB2Bu8BQAIAAA==
+  </data>
+ </layer>
+</map>

@@ -184,6 +184,20 @@ public:
     void repositionSprite(float dt);
 };
 
+class TMXOrthoZorderLayer : public TileDemo
+{
+    CCSprite*    m_tamara;
+	CCTMXTiledMap* m_map;
+public:
+    TMXOrthoZorderLayer(void);
+    virtual std::string title();
+    virtual std::string subtitle();
+
+    virtual ~TMXOrthoZorderLayer();
+	int getZOrderFromY(const CCPoint& pos, float offsetY=0.f);
+    void repositionSprite(float dt);
+};
+
 class TMXIsoVertexZ : public TileDemo
 {
     CCSprite*    m_tamara;

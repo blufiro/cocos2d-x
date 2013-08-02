@@ -926,6 +926,77 @@ std::string TMXOrthoZorder::subtitle()
 
 //------------------------------------------------------------------
 //
+// TMXOrthoZorderLayer
+//
+//------------------------------------------------------------------
+TMXOrthoZorderLayer::TMXOrthoZorderLayer()
+{
+    m_map = CCTMXTiledMap::create("TileMaps/orthogonal-test-zorder-layer.tmx");
+	m_map->retain();
+    addChild(m_map, 0, kTagTileMap);
+    
+    CCSize CC_UNUSED s = m_map->getContentSize();
+    CCLOG("ContentSize: %f, %f", s.width,s.height);
+    
+    m_tamara = CCSprite::create("TileMaps/ortho-test1.png", 
+		CCRect(118, 63, 72, 78) );
+	m_map->layerNamed("trees")->addChild(m_tamara,  
+		getZOrderFromY(m_tamara->getPosition()) , -1);
+    m_tamara->retain();
+
+	m_tamara->setAnchorPoint(ccp(0.5f, 0));
+
+    
+    CCActionInterval* move = CCMoveBy::create(5, ccp(400,450));
+    CCActionInterval* back = move->reverse();
+    CCSequence* seq = CCSequence::create(move, back,NULL);
+    m_tamara->runAction( CCRepeatForever::create(seq));
+    
+    schedule( schedule_selector(TMXOrthoZorderLayer::repositionSprite));
+}
+
+TMXOrthoZorderLayer::~TMXOrthoZorderLayer()
+{
+    m_tamara->release();
+	m_map->release();
+}
+
+int TMXOrthoZorderLayer::getZOrderFromY(const CCPoint& pos, float offsetY)
+{
+	int mapPixelsHeight = m_map->getMapSize().height * m_map->getTileSize().height;
+	int layerHeight = m_map->getMapSize().height;
+
+	// gridY = (mapHeight - pos.y+offsetY) / tileHeight
+	int gridY = (mapPixelsHeight-pos.y+offsetY) / m_map->getTileSize().height;
+	// zOrder = (int)(-(layerHeight - gridY));
+	return -(layerHeight - gridY);
+}
+
+void TMXOrthoZorderLayer::repositionSprite(float dt)
+{
+    CCPoint p = m_tamara->getPosition();
+    p = CC_POINT_POINTS_TO_PIXELS(p);
+    
+    // there are only 2 layers. (grass and trees layers)
+    // we added tamara to the trees layer
+	// so just update her z order
+
+	m_map->layerNamed("trees")->reorderChild(m_tamara, 
+		getZOrderFromY(m_tamara->getPosition()));
+}
+
+std::string TMXOrthoZorderLayer::title()
+{
+    return "TMX Ortho Zorder";
+}
+
+std::string TMXOrthoZorderLayer::subtitle()
+{
+    return "Sprite should hide behind the trees (all on same layer)";
+}
+
+//------------------------------------------------------------------
+//
 // TMXIsoVertexZ
 //
 //------------------------------------------------------------------
@@ -1355,7 +1426,7 @@ enum
 
 static int sceneIdx = -1; 
 
-#define MAX_LAYER    28
+#define MAX_LAYER    29
 
 CCLayer* createTileMapLayer(int nIndex)
 {
@@ -1389,6 +1460,7 @@ CCLayer* createTileMapLayer(int nIndex)
         case 25: return new TMXBug987();
         case 26: return new TMXBug787();
         case 27: return new TMXGIDObjectsTest();
+		case 28: return new TMXOrthoZorderLayer();
     }
 
     return NULL;
