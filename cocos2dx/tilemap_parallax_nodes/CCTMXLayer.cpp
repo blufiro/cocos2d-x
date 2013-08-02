@@ -92,7 +92,7 @@ bool CCTMXLayer::initWithTilesetInfo(CCTMXTilesetInfo *tilesetInfo, CCTMXLayerIn
 
         m_bUseAutomaticVertexZ = false;
         m_nVertexZvalue = 0;
-		m_bUseAutomaticZOrder = false;
+		m_bUseZOrderByY = false;
         
         return true;
     }
@@ -237,10 +237,10 @@ void CCTMXLayer::parseInternalProperties()
 
 	// if cc_zorder=automatic, then tiles will be rendered using in row order from top to bottom
 
-	CCString *zorder = propertyNamed("cc_zorder");
+	CCString *zorder = propertyNamed("useZOrderbyY");
     if (zorder) 
     {
-		m_bUseAutomaticZOrder = true;
+		m_bUseZOrderByY = true;
 
 		// delete AtlasIndexArray as we no longer can use quads in this mode
 		// all tiles will be instantiated as sprites
@@ -624,7 +624,7 @@ void CCTMXLayer::addChild(CCNode * child, int zOrder, int tag)
 	// must use automatic zorder mode in order to use addchild
 	// since sprites can now interfere with the z order in the batch
 	// so we have to delete the atlasindexarray
-	CCAssert(m_bUseAutomaticZOrder, "Not using automatiz z order");
+	CCAssert(m_bUseZOrderByY, "Not using automatiz z order");
 	
 	// want to allow for non-tmx map sprites using same texture atlas
 	// e.g. game sprites that are instantiated at run-time
@@ -640,11 +640,7 @@ void CCTMXLayer::removeChild(CCNode* node, bool cleanup)
     }
 
     CCAssert(m_pChildren->containsObject(sprite), "Tile does not belong to TMXLayer");
-
-    unsigned int atlasIndex = sprite->getAtlasIndex();
-    unsigned int zz = (size_t)m_pAtlasIndexArray->arr[atlasIndex];
-    m_pTiles[zz] = 0;
-    ccCArrayRemoveValueAtIndex(m_pAtlasIndexArray, atlasIndex);
+	CCAssert(m_bUseZOrderByY, "Not using automatic z order");
     CCSpriteBatchNode::removeChild(sprite, cleanup);
 }
 void CCTMXLayer::removeTileAt(const CCPoint& pos)
@@ -799,7 +795,7 @@ int CCTMXLayer::zOrderForPos(const CCPoint& pos)
 {
 	int ret = 0;
     unsigned int maxVal = 0;
-    if (m_bUseAutomaticZOrder)
+    if (m_bUseZOrderByY)
     {
         switch (m_uLayerOrientation) 
         {

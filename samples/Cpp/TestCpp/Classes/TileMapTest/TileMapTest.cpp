@@ -963,13 +963,10 @@ TMXOrthoZorderLayer::~TMXOrthoZorderLayer()
 
 int TMXOrthoZorderLayer::getZOrderFromY(const CCPoint& pos, float offsetY)
 {
-	int mapPixelsHeight = m_map->getMapSize().height * m_map->getTileSize().height;
-	int layerHeight = m_map->getMapSize().height;
-
 	// gridY = (mapHeight - pos.y+offsetY) / tileHeight
-	int gridY = (mapPixelsHeight-pos.y+offsetY) / m_map->getTileSize().height;
+	int gridY = m_map->getMapSize().height - ((pos.y+offsetY) / m_map->getTileSize().height);
 	// zOrder = (int)(-(layerHeight - gridY));
-	return -(layerHeight - gridY);
+	return -(m_map->getMapSize().height - gridY);
 }
 
 void TMXOrthoZorderLayer::repositionSprite(float dt)

@@ -157,6 +157,8 @@ public:
 
     inline const char* getLayerName(){ return m_sLayerName.c_str(); }
     inline void setLayerName(const char *layerName){ m_sLayerName = layerName; }
+	inline bool getUseZOrderByY(void) { return m_bUseZOrderByY; }
+
 private:
     CCPoint positionForIsoAt(const CCPoint& pos);
     CCPoint positionForOrthoAt(const CCPoint& pos);
@@ -195,7 +197,7 @@ protected:
 	//! Only used when zorder is used
 	//! Setting this to true will also cause all tiles to become sprites
 	// instead of just quads in SpriteBatchNode
-	bool				m_bUseAutomaticZOrder;
+	bool				m_bUseZOrderByY;
 
     //! used for optimization
     CCSprite            *m_pReusedTile;

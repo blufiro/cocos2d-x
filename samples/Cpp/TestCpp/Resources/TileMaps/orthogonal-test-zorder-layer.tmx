@@ -10,7 +10,7 @@
  </layer>
  <layer name="trees" width="12" height="12">
   <properties>
-   <property name="cc_zorder" value="true"/>
+   <property name="useZOrderbyY" value="true"/>
   </properties>
   <data encoding="base64" compression="gzip">
    H4sIAAAAAAAAC2NgGAXUBIx4MDaggQdjA2p4MDagDsUiSGx0jAxEoJhYAAB2Bu8BQAIAAA==
